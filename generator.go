@@ -18,8 +18,8 @@ import (
 
 var client = &http.Client{
 	Transport: &http.Transport{
-		MaxIdleConns:        1000,
-		MaxIdleConnsPerHost: 1000,
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
 	},
 	Timeout: 30 * time.Second,
@@ -119,14 +119,14 @@ func generateRandomCAs(count int) ([][]byte, error) {
 	return applications, nil
 }
 
-func doCARequest(url string, data []byte) error {
+func doPostCARequest(requestUrl string, data []byte) error {
 	buf := bufPool.Get().(*bytes.Buffer)
 	defer bufPool.Put(buf)
 
 	buf.Reset()
 	buf.Write(data)
 
-	_, err := client.Post(url, "application/json", buf)
+	_, err := client.Post(requestUrl, "application/json", buf)
 	if err != nil {
 		slog.Error("request failed", "err", err)
 		return err
@@ -136,10 +136,7 @@ func doCARequest(url string, data []byte) error {
 }
 
 func GenerateManualCAs(ctx context.Context, applications []CreditApplication) error {
-	url := os.Getenv("CAF_GATEWAY_URL")
-	if url == "" {
-		return fmt.Errorf("gateway url not provided")
-	}
+	var url = os.Getenv("CAF_GATEWAY_URL")
 
 	mu := sync.Mutex{}
 	errApplications := make([]string, 0)
@@ -158,7 +155,7 @@ func GenerateManualCAs(ctx context.Context, applications []CreditApplication) er
 				return
 			}
 
-			if err := doCARequest(url, jsonData); err != nil {
+			if err := doPostCARequest(url, jsonData); err != nil {
 				mu.Lock()
 				errApplications = append(errApplications, application.Id)
 				mu.Unlock()
@@ -178,10 +175,7 @@ func GenerateManualCAs(ctx context.Context, applications []CreditApplication) er
 }
 
 func GenerateLoadCAs(ctx context.Context, count int, duration int) (int, error) {
-	url := os.Getenv("CAF_GATEWAY_URL")
-	if url == "" {
-		return 0, fmt.Errorf("gateway url not provided")
-	}
+	var url = os.Getenv("CAF_GATEWAY_URL")
 
 	rps := float64(count) / float64(duration)
 	interval := time.Duration(float64(time.Second) / rps)
@@ -197,22 +191,21 @@ func GenerateLoadCAs(ctx context.Context, count int, duration int) (int, error) 
 	for _, application := range applications {
 		reqChan <- application
 	}
-	time.Sleep(5 * time.Second)
 
-	workers := 200
+	startTime := time.Now().UTC()
+	slog.Info("load ca-test:", "start at", startTime)
+
+	workers := 100
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for application := range reqChan {
-				_ = doCARequest(url, application)
+				_ = doPostCARequest(url, application)
 			}
 		}()
 	}
-
-	startTime := time.Now().UTC()
-	slog.Info("load ca-test:", "start at", startTime)
 
 	close(reqChan)
 	wg.Wait()
