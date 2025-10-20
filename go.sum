@@ -1,3 +1,5 @@
+github.com/anton2920/gofa v0.0.0-20251003214513-435622db6c99 h1:xLw0d3su+rkcUrwQJkmQ0OpvWnvlMWOI+LA9+xHBQj8=
+github.com/anton2920/gofa v0.0.0-20251003214513-435622db6c99/go.mod h1:2G6sIvNTS5FPEQdRTnR9IuxfJwKvCEEK0EjCxWTjsvY=
 github.com/brianvoe/gofakeit/v7 v7.2.1 h1:AGojgaaCdgq4Adzrd2uWdbGNDyX6MWNhHdQBraNfOHI=
 github.com/brianvoe/gofakeit/v7 v7.2.1/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

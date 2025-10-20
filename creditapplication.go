@@ -17,6 +17,7 @@ type Applicant struct {
 	Lastname   string `json:"lastname"`
 	Patronymic string `json:"patronymic"`
 
+	Age         int    `json:"age"`
 	BirthDate   string `json:"birth_date"`
 	Nationality string `json:"nationality"`
 	Citizenship string `json:"citizenship"`

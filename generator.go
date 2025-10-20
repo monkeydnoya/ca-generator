@@ -25,11 +25,11 @@ var client = &http.Client{
 	Timeout: 30 * time.Second,
 }
 
-var bufPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
+// var bufPool = sync.Pool{
+// 	New: func() any {
+// 		return new(bytes.Buffer)
+// 	},
+// }
 
 var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 var channels = []string{"mobile", "office", "web"}
@@ -42,19 +42,20 @@ func generateRandomCAs(count int) ([][]byte, error) {
 		creditAmountString := fmt.Sprintf("%f", creditAmountFloat64)
 		incomeAmountFloat64 := gofakeit.Float64Range(float64(100000), float64(900000))
 		applicationDate := time.Now().UTC()
-		applicationTime := applicationDate.Format("15:00:00")
+		applicationTime := applicationDate.Format("15:04:05")
 
 		application := CreditApplication{
 			Id:       uuid.New().String(),
 			Date:     applicationDate,
 			Time:     applicationTime,
 			Channel:  channels[r.Intn(len(channels))],
-			Duration: gofakeit.IntRange(40, 900),
+			Duration: gofakeit.IntRange(60, 120),
 			Region:   "Алматы",
 			Applicant: Applicant{
 				Type:                 "person",
+				Age:                  gofakeit.IntRange(18, 90),
 				UserId:               uuid.New().String(),
-				IINBIN:               gofakeit.SSN(),
+				IINBIN:               "830622350419",
 				IDCardNumber:         gofakeit.SSN(),
 				IDCardIssueDate:      gofakeit.PastDate(),
 				IDCardExpirationDate: gofakeit.FutureDate(),
@@ -120,13 +121,8 @@ func generateRandomCAs(count int) ([][]byte, error) {
 }
 
 func doPostCARequest(requestUrl string, data []byte) error {
-	buf := bufPool.Get().(*bytes.Buffer)
-	defer bufPool.Put(buf)
-
-	buf.Reset()
-	buf.Write(data)
-
-	_, err := client.Post(requestUrl, "application/json", buf)
+	// Slice of bytes -> buffer -> http.Response
+	_, err := client.Post(requestUrl, "application/json", bytes.NewReader(data))
 	if err != nil {
 		slog.Error("request failed", "err", err)
 		return err
@@ -174,18 +170,13 @@ func GenerateManualCAs(ctx context.Context, applications []CreditApplication) er
 	return nil
 }
 
-func GenerateLoadCAs(ctx context.Context, count int, duration int) (int, error) {
-	var url = os.Getenv("CAF_GATEWAY_URL")
-
-	rps := float64(count) / float64(duration)
-	interval := time.Duration(float64(time.Second) / rps)
-
-	slog.Info("load ca-test:", "rps", rps, "interval", interval)
+func GenerateLoadCAs(ctx context.Context, count int) error {
+	url := "https://caf.baraiq.io/api/gtwsvc/async/credit-application"
 
 	reqChan := make(chan []byte, count)
 	applications, err := generateRandomCAs(count)
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	for _, application := range applications {
@@ -195,7 +186,7 @@ func GenerateLoadCAs(ctx context.Context, count int, duration int) (int, error) 
 	startTime := time.Now().UTC()
 	slog.Info("load ca-test:", "start at", startTime)
 
-	workers := 100
+	workers := 1000
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
@@ -210,7 +201,13 @@ func GenerateLoadCAs(ctx context.Context, count int, duration int) (int, error) 
 	close(reqChan)
 	wg.Wait()
 
-	slog.Info("load ca-test:", "done at", time.Now().UTC())
-	duration = int(time.Since(startTime).Nanoseconds())
-	return duration, nil
+	duration := int(time.Since(startTime).Nanoseconds())
+
+	var rps float64
+	if duration != 0 {
+		rps = float64(count) / (float64(duration) / float64(1000000000))
+	}
+
+	slog.Info("load ca-test:", "count", count, "duration(ns)", duration, "rps", rps)
+	return nil
 }

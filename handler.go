@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"strconv"
 )
 
@@ -41,23 +42,19 @@ func LoadHandler(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	durationString := r.URL.Query().Get("duration")
-	duraiton, err := strconv.Atoi(durationString)
+	err = GenerateLoadCAs(r.Context(), count)
 	if err != nil {
 		return err
 	}
 
-	duration, err := GenerateLoadCAs(r.Context(), count, duraiton)
-	if err != nil {
+	return nil
+}
+
+func TracingMeasureHandler(w http.ResponseWriter, r *http.Request) error {
+	if err := TracingMeasure(); err != nil {
 		return err
 	}
 
-	data, err := json.Marshal(&duration)
-	if err != nil {
-		return err
-	}
-
-	w.Write(data)
 	return nil
 }
 
@@ -66,6 +63,11 @@ func RegisterHandlers() *http.ServeMux {
 
 	mux.Handle("/api/manual", RequestHandler(ManualHandler))
 	mux.Handle("/api/load", RequestHandler(LoadHandler))
+
+	mux.Handle("/debug/pprof", http.DefaultServeMux)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+
+	mux.Handle("/api/tracing/measure", RequestHandler(TracingMeasureHandler))
 
 	return mux
 }

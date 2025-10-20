@@ -5,35 +5,34 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
+	"runtime/trace"
 	"syscall"
 
 	"github.com/brianvoe/gofakeit/v7"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	runtime.MemProfileRate = 0 // Disable profiling overhead
-
-	err := godotenv.Load()
+	f, err := os.Create("trace.out")
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		panic(err)
 	}
+	defer f.Close()
 
-	host := os.Getenv("API_HOST")
-	if host == "" {
-		host = "0.0.0.0"
+	if err := trace.Start(f); err != nil {
+		panic(err)
 	}
+	defer trace.Stop()
 
-	port := os.Getenv("API_PORT")
-	if port == "" {
-		port = "8000"
-	}
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	fmt.Printf("GOMAXPROCS=%d\n", runtime.NumCPU())
 
-	addr := fmt.Sprintf("%s:%s", host, port)
+	addr := "0.0.0.0:7000"
+
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 
 	var server *http.Server
 
