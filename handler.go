@@ -36,13 +36,15 @@ func ManualHandler(w http.ResponseWriter, r *http.Request) error {
 }
 
 func LoadHandler(w http.ResponseWriter, r *http.Request) error {
+	r.ParseForm()
+
 	countString := r.URL.Query().Get("count")
 	count, err := strconv.Atoi(countString)
 	if err != nil {
 		return err
 	}
 
-	err = GenerateLoadCAs(r.Context(), count)
+	err = GenerateLoadCAs(count, r.URL.Query().Get("objectType"))
 	if err != nil {
 		return err
 	}

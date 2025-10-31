@@ -86,3 +86,63 @@ type CreditApplication struct {
 	DriversLicense            bool `json:"drivers_license"`
 	SpousesConsent            bool `json:"spouses_consent"`
 }
+
+type Transaction struct {
+	Id string `json:"id"`
+
+	SourceUserId     string `json:"source_user_id" aml:"user_id"`
+	SourceIdentifier string `json:"source_identifier" aml:"iinbin"`
+	SourceFullname   string `json:"source_fullname" aml:"fullname"`
+	SourceCardNumber string `json:"source_card_number" aml:"card_number"`
+	SourceAccount    string `json:"source_account" aml:"iban"`
+
+	TargetUserId     string `json:"target_user_id" aml:"user_id"`
+	TargetIdentifier string `json:"target_identifier" aml:"iinbin"`
+	TargetFullname   string `json:"target_fullname" aml:"fullname"`
+	TargetCardNumber string `json:"target_card_number" aml:"card_number"`
+	TargetAccount    string `json:"target_account" aml:"iban"`
+
+	MerchantId         string `json:"merchant_id" aml:"merchant_id"`
+	MerchantTerminalId string `json:"merchant_terminal_id" aml:"merchant_terminal_id"`
+	MerchantMCCCode    string `json:"merchant_mcc_code" aml:"merchant_mcc_code"`
+
+	Date               string `json:"date"`
+	Time               string `json:"time"`
+	Amount             string `json:"amount"`
+	Currency           string `json:"currency"`
+	PaymentMode        string `json:"payment_mode"`
+	TransactionType    string `json:"transaction_type"`
+	TransactionCountry string `json:"transaction_country" aml:"country"`
+	TransactionCity    string `json:"transaction_city"`
+	TransactionChannel string `json:"transaction_channel"`
+	TransactionRRN     string `json:"transaction_rrn"`
+	TransactionStatus  string `json:"transaction_status,optional"`
+
+	RegistrationDate string `json:"registration_date,optional"`
+	CardType         string `json:"card_type"`
+
+	NewRecipient string `json:"new_recipient,optional"`
+	NewTerminal  string `json:"new_terminal,optional"`
+
+	DeviceId             string `json:"device_id" aml:"device_id"`
+	LastDeviceUpdateDate string `json:"last_device_update_date,optional"`
+	IPConnentionType     string `json:"ip_connection_type,optional"`
+	RemoteAccess         string `json:"remote_access,optional"`
+	ScreenSharing        string `json:"screen_sharing,optional"`
+	HardwareId           string `json:"hardware_id,optional"`
+	OSID                 string `json:"os_id,optional"`
+	IsTokenized          string `json:"is_tokenized,optional"`
+	WebLocale            string `json:"web_locale,optional"`
+	CookieEnabled        string `json:"cookie_enabled,optional"`
+
+	LastLoginDate        string `json:"last_login_date,optional"`
+	LastRegistrationDate string `json:"last_registration_date,optional"`
+
+	LastDenyEvent   string `json:"last_deny_event_date,optional"`
+	LastReviewEvent string `json:"last_review_event_date,optional"`
+
+	LastLimitsUpdateDate    string `json:"last_limit_update_date,optional"`
+	LastLoanApplicationDate string `json:"last_loan_application_date,optional"`
+	LastLoanApprovalDate    string `json:"last_loan_approval_date,optional"`
+	PinUpdateDate           string `json:"pin_update_date,optional"`
+}

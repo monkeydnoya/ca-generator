@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,14 +23,10 @@ var client = &http.Client{
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
 	},
-	Timeout: 30 * time.Second,
+	Timeout: 10 * time.Second,
 }
 
-// var bufPool = sync.Pool{
-// 	New: func() any {
-// 		return new(bytes.Buffer)
-// 	},
-// }
+var txnTypes = [...]string{"C2C", "C2A", "P2P", "A2C", "A2A", "CORPC2A", "CORPC2C", "CORPA2A", "CORPA2C"}
 
 var r = rand.New(rand.NewSource(time.Now().UnixNano()))
 var channels = []string{"mobile", "office", "web"}
@@ -55,7 +52,7 @@ func generateRandomCAs(count int) ([][]byte, error) {
 				Type:                 "person",
 				Age:                  gofakeit.IntRange(18, 90),
 				UserId:               uuid.New().String(),
-				IINBIN:               "830622350419",
+				IINBIN:               "001000001000",
 				IDCardNumber:         gofakeit.SSN(),
 				IDCardIssueDate:      gofakeit.PastDate(),
 				IDCardExpirationDate: gofakeit.FutureDate(),
@@ -120,10 +117,92 @@ func generateRandomCAs(count int) ([][]byte, error) {
 	return applications, nil
 }
 
+func generateRandomTxns(count int) ([][]byte, error) {
+	txns := make([][]byte, count)
+	for i := 0; i < count; i++ {
+		date := time.Now().UTC()
+		txnTime := date.Format("15:04:05")
+
+		txn := Transaction{
+			Id:                   uuid.New().String(),
+			SourceUserId:         uuid.New().String(),
+			SourceIdentifier:     strconv.Itoa(gofakeit.Number(100000000000, 900000000000)),
+			SourceFullname:       gofakeit.LastName() + " " + gofakeit.FirstName() + " " + gofakeit.MiddleName(),
+			SourceCardNumber:     gofakeit.CreditCardNumber(nil),
+			SourceAccount:        "KZ" + gofakeit.SSN() + gofakeit.SSN(),
+			TargetUserId:         uuid.New().String(),
+			TargetIdentifier:     strconv.Itoa(gofakeit.Number(100000000000, 900000000000)),
+			TargetFullname:       gofakeit.LastName() + " " + gofakeit.FirstName() + " " + gofakeit.MiddleName(),
+			TargetCardNumber:     gofakeit.CreditCardNumber(nil),
+			TargetAccount:        "KZ" + gofakeit.SSN() + gofakeit.SSN(),
+			MerchantId:           uuid.New().String(),
+			MerchantTerminalId:   uuid.New().String(),
+			MerchantMCCCode:      gofakeit.CreditCardCvv(),
+			Date:                 date.Format(time.RFC3339),
+			Time:                 txnTime,
+			Amount:               strconv.Itoa(gofakeit.Number(100000, 10000000)),
+			Currency:             "KZT",
+			PaymentMode:          gofakeit.CreditCardCvv(),
+			TransactionType:      txnTypes[r.Intn(len(txnTypes))],
+			TransactionCountry:   "Казахстан",
+			TransactionCity:      "Алматы",
+			TransactionChannel:   "Y",
+			TransactionRRN:       uuid.New().String(),
+			TransactionStatus:    "Non-3DS",
+			RegistrationDate:     gofakeit.Date().Format(time.RFC3339),
+			CardType:             "debit",
+			NewRecipient:         "yes",
+			NewTerminal:          "false",
+			DeviceId:             uuid.New().String(),
+			LastDeviceUpdateDate: gofakeit.Date().Format(time.RFC3339),
+			RemoteAccess:         "false",
+			ScreenSharing:        "false",
+			HardwareId:           uuid.New().String(),
+			OSID:                 uuid.New().String(),
+			IsTokenized:          "false",
+			CookieEnabled:        "false",
+			LastLoginDate:        gofakeit.Date().Format(time.RFC3339Nano),
+			LastRegistrationDate: gofakeit.Date().Format(time.RFC3339),
+			LastDenyEvent:        gofakeit.Date().Format(time.RFC3339Nano),
+			LastReviewEvent:      gofakeit.Date().Format(time.RFC3339),
+			LastLimitsUpdateDate: gofakeit.Date().Format(time.RFC3339),
+			PinUpdateDate:        gofakeit.Date().Format(time.RFC3339),
+		}
+
+		txnBytes, err := json.Marshal(txn)
+		if err != nil {
+			return nil, err
+		}
+
+		txns[i] = txnBytes
+	}
+
+	return txns, nil
+}
+
 func doPostCARequest(requestUrl string, data []byte) error {
-	// Slice of bytes -> buffer -> http.Response
-	_, err := client.Post(requestUrl, "application/json", bytes.NewReader(data))
+	// TODO: Handle response and log fails
+	reqId := uuid.New()
+
+	req, err := http.NewRequest("POST", requestUrl, bytes.NewReader(data))
 	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Request-ID", reqId.String())
+
+	_, err = client.Do(req)
+	if err != nil {
+		var object Transaction
+
+		if err := json.Unmarshal(data, &object); err != nil {
+			slog.Error("failed to unmarshal", "err", err.Error())
+			return err
+		}
+
+		slog.Info("failed object", "id", object.Id, "requestId", reqId)
+
 		slog.Error("request failed", "err", err)
 		return err
 	}
@@ -170,30 +249,46 @@ func GenerateManualCAs(ctx context.Context, applications []CreditApplication) er
 	return nil
 }
 
-func GenerateLoadCAs(ctx context.Context, count int) error {
-	url := "https://caf.baraiq.io/api/gtwsvc/async/credit-application"
+func GenerateLoadCAs(count int, objectType string) error {
+	var url string
 
 	reqChan := make(chan []byte, count)
-	applications, err := generateRandomCAs(count)
-	if err != nil {
-		return err
+	objects := make([][]byte, count)
+
+	var err error
+
+	switch objectType {
+	case "credit-application":
+		url = "https://caf.baraiq.io/api/gtwsvc/async/credit-application"
+		objects, err = generateRandomCAs(count)
+		if err != nil {
+			return err
+		}
+	case "transaction":
+		url = "https://taf.baraiq.io/api/gtwsvc/async/transaction"
+		objects, err = generateRandomTxns(count)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported object type")
 	}
 
-	for _, application := range applications {
-		reqChan <- application
+	for _, object := range objects {
+		reqChan <- object
 	}
 
 	startTime := time.Now().UTC()
-	slog.Info("load ca-test:", "start at", startTime)
+	slog.Info("load ca-test:", "type", objectType, "start at", startTime)
 
-	workers := 1000
+	workers := 80
 	var wg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for application := range reqChan {
-				_ = doPostCARequest(url, application)
+			for object := range reqChan {
+				_ = doPostCARequest(url, object)
 			}
 		}()
 	}
